@@ -4,6 +4,9 @@ from twil.exceptions import InvalidMessage, TwilioException, RestException, \
     UnknownResponseError
 from twil.util import response_dict, twilio_date
 from xml.etree import ElementTree
+import logging
+import traceback
+log = logging.getLogger('twil.models')
 
 class SmsManager(models.Manager):
     def update_sid(self, sid):
@@ -18,6 +21,10 @@ class SmsManager(models.Manager):
              page = None, 
              max_pages = None,
              account = DEFAULT):
+        """ Perform a GET on the messages url for the account specified,
+        process each message and save the message back to the database
+        if it does not already exist.
+        """
         url = account.URLS.MESSAGES
         on_page = 0
         data = []
@@ -43,12 +50,12 @@ class SmsManager(models.Manager):
             return tree.attrib.get('nextpageuri')
         messages = []
         if tree.tag.lower() == 'smsmessages':
-            new_tree, msgs = self.handle_messages(response = response)
+            new_tree, msgs = self._handle_messages(response = response)
             messages += msgs
             next_page = get_next_page(new_tree)
             while next_page and on_page < max_pages:
                 on_page += 1
-                new_tree, msgs = self.handle_messages(uri = next_page)
+                new_tree, msgs = self._handle_messages(uri = next_page)
                 messages += msgs
                 next_page = get_next_page(new_tree)
         elif tree.tag.lower() == 'smsmessage':
@@ -59,7 +66,8 @@ class SmsManager(models.Manager):
             raise UnknownResponseError(tree)
         return messages
     
-    def handle_messages(self, uri = None, response = None, account = DEFAULT):
+    def _handle_messages(self, uri = None, response = None, account = DEFAULT):
+        """ Handle multiple messages from either a uri or from a response """
         if response is None:
             assert(uri)
             response = account.twilio.request(uri, 'GET')
@@ -71,6 +79,7 @@ class SmsManager(models.Manager):
         return tree, messages
     
     def parse_message(self, tree, commit = True):
+        """ Parse the message response from twilio """
         sms = self.model()
         if isinstance(tree, basestring):
             tree = ElementTree.fromstring(tree)[0]
@@ -85,9 +94,25 @@ class SmsManager(models.Manager):
         return sms
     
     def pull_recieved(self, **kwargs):
+        """ Pull messages sent TO your number """
         account = kwargs.get('account', DEFAULT)
         kwargs['to_number'] = account.NUMBER
         return self.pull(**kwargs)
+    
+    def send(self, phone_number, text, fail_silently = False, account = DEFAULT):
+        """ Send message to number and save message to database """
+        d = { 
+            'To' : phone_number, 
+            'From' : account.NUMBER, 
+            'Body' : text, 
+            }
+        try:
+            r = account.twilio.request(account.URLS.MESSAGES, 'POST', d)
+            return self.parse_message(r)
+        except Exception, e:
+            if not fail_silently:
+                raise e
+            log.error(traceback.format_exc())
 
 class Sms(models.Model):
     QUEUED = 0

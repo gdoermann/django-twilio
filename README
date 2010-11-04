@@ -1,1 +1,29 @@
 This library depends on the Twilio library at: https://github.com/twilio/twilio-python/
+
+1. Add twil to your python path and INSTALLED_APPS
+2. Add the following variables to your settings.py file:
+
+    DEFAULT_ACCOUNT = "Your Default Twilio Account SID"
+    TWILIO_SETTINGS = {
+       "Account SID":{
+            'api' : '2010-04-01',
+            'caller_id' : '123-456-7890',
+            'number' : '123-456-7890',
+            'sandbox_number' : '1234567890',
+            'token' : 'Your Token',
+          }
+       # Add as many accounts as you have
+    }
+NOTE: You can set as many accounts as you like (and you can set which account to pull from as well).  
+
+3. To pull your full history into the database run:
+    ./manage.py shell
+    from twil import models
+    models.Sms.objects.pull()
+
+I don't currently have support for conversations or voice stuff.  
+I am also working on support for callback urls.
+
+Feel free to contribute!
+
+Greg
