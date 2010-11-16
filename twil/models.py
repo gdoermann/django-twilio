@@ -96,14 +96,16 @@ class SmsManager(models.Manager):
     def pull_recieved(self, **kwargs):
         """ Pull messages sent TO your number """
         account = kwargs.get('account', DEFAULT)
-        kwargs['to_number'] = account.NUMBER
+        kwargs['to_number'] = account.number
         return self.pull(**kwargs)
     
     def send(self, phone_number, text, fail_silently = False, account = DEFAULT):
         """ Send message to number and save message to database """
+        if account.SANDBOX:
+            text = account.PIN + text
         d = { 
             'To' : phone_number, 
-            'From' : account.NUMBER, 
+            'From' : account.number, 
             'Body' : text, 
             }
         try:
